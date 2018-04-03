@@ -2,7 +2,14 @@
 #
 # Perform lookup of ip/url using geoiplookup and can output to mapscii or google map api.
 
-usage () { echo "How to use"; }
+usage () { 
+
+echo "SYNOPSIS"; 
+echo "giomapip [ -g ] [ -m ] [ target IP/URL ] "; 
+echo " ";
+echo "-m      uses mapsii to display geo location";
+echo "-g      uses google to display geo location";
+}
 
 options=':m:g:'
 while getopts $options option
@@ -19,6 +26,7 @@ done
 
 if [ -z "${myflag}" ]; then
 usage
+exit
 fi
 
 #Mapscii.coffee file location 
@@ -36,16 +44,50 @@ google_api_key=""
 # 
 # 
 # Arguments:
-#   error_code "code" "Message" 
+#   error_code "code" "Message" ${FUNCNAME[0]}
 #
 # Returns:
+# error code 5 retries function
+# error code 10 continues
+#error code 20 exit 1
 #######################################
 
 function error_code() {
 
 if [ "$1" == "5" ]; then
+echo $2
 
-echo "fatal error with" $2
+while true; do
+    read -p "Do you wish try again? [Y/N] " yn
+    case $yn in
+        [Yy]* ) $3; break;;
+        [Nn]* ) exit;;
+        * ) echo "Please answer Yes or No.";;
+    esac
+done
+
+fi
+
+if [ "$1" == "10" ]; then
+echo $2
+
+while true; do
+    read -p "Would you like to continue anyway? [Y/N] " yn
+    case $yn in
+        [Yy]* ) break;;
+        [Nn]* ) exit;;
+        * ) echo "Please answer Yes or No.";;
+    esac
+done
+
+fi
+
+if [ "$1" == "20" ]; then
+
+echo $2
+
+exit 1
+
 fi
 
 }
@@ -67,10 +109,11 @@ function is_online() {
 
 test_google_net="$(nslookup 8.8.8.8 -timeout=1 | grep 'google' | awk '{print $(NF)}' | wc -l | awk '{print $1}')"
 if [ "$test_google_net" == "0" ]; then
-
+error_code 5 "Can not Connect to the Internet" ${FUNCNAME[0]}
 fi
 }
 
+is_online
 
 #######################################
 # function check_hostname
@@ -86,19 +129,7 @@ fi
 #.  $only_host_name
 #######################################
 
-if [ -z "${only_host_name}" ]; then
 
-check_hostname $netadd
-echo $only_host_name
-fi
-
-lower_case_letter="$(echo {a..z})"
-upper_case_letter="$(echo {a..z})"
-
-if [ `expr "$only_host_name" : ".*[${lower_case_letter} ${upper_case_letter}].*"` -gt 0 ];
-    then 
-       is_ip_add="50"; 
-       fi
 
 function check_hostname() {
 
@@ -107,7 +138,25 @@ Protocol="$(echo $1 | grep :// | sed -e's,^\(.*://\).*,\1,g')"
 full_address="$(echo ${1/$Protocol/})"
 
 only_host_name="$(echo ${full_address//} | cut -d/ -f1)"
+
 }
+
+if [ -z "${only_host_name}" ]; then
+
+check_hostname "${net_add}"
+echo "${only_host_name}"
+
+fi
+
+lower_case_letter="$(echo {a..z})"
+upper_case_letter="$(echo {a..z})"
+
+if [ `expr "${only_host_name}" : ".*[${lower_case_letter} ${upper_case_letter}].*"` -gt 0 ]; then 
+
+is_ip_add="50"; 
+
+fi
+       
        
 #######################################
 # function check_i.p
@@ -118,16 +167,9 @@ only_host_name="$(echo ${full_address//} | cut -d/ -f1)"
 #   check_i.p i.p 
 # 
 # Returns:
-#   return 90 if not Valid
-#   return 100 if is Valid
+#   error_code 10 if not Valid
+#   
 #######################################
-       
-if [ -z "${is_ip_add}" ]; then
-
-check_i.p $only_host_name
-is_ip_add=$?
-
-fi
 
 function check_i.p() {
 
@@ -142,15 +184,19 @@ if expr "$ip" : '[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*$' >/dev/null
       exit 1
     fi
   done
-  echo "($ip) is a Valid I.P "
-  return 100
+
 else
-  echo "($ip) is not a Valid I.P"
-  return 90
+  error_code 10 "($ip) is not a Valid I.P"
 fi
 
 }
 
+if [ -z "${is_ip_add}" ]; then
+
+check_i.p "${only_host_name}"
+is_ip_add=$?
+
+fi
 
 #######################################
 # function check_connect
@@ -164,42 +210,61 @@ fi
 #   5 on error
 #######################################
 
-if [ -n "${myflag}" ]; then
-check_connect $net_add
-good_to_go=$?
-fi
+
 
 function check_connect() {
-
+echo "$1"
 check_address="$(geoiplookup "$1" | tail -1 | sed -e "s/IP/a0fe7213be84bac2c1e65d85fb901464/g" | sed -e "s/Address/a0fe7213be84bac2c1e65d85fb901464/g" | sed -e "s/not/a0fe7213be84bac2c1e65d85fb901464/g" | sed -e "s/found/a0fe7213be84bac2c1e65d85fb901464/g" | grep -oh "[[:alpha:]]*a0fe7213be84bac2c1e65d85fb901464[[:alpha:]]*" | wc -c | awk '{print $1}')"
-
+echo $check_address
 check_url="$(geoiplookup "$1" | tail -1 | sed -e "s/resolve/a0fe7213be84bac2c1e65d85fb901464/g" | sed -e "s/hostname/a0fe7213be84bac2c1e65d85fb901464/g" | grep -oh "[[:alpha:]]*a0fe7213be84bac2c1e65d85fb901464[[:alpha:]]*" | wc -c | awk '{print $1}')"
-
+echo $check_url
 if [ "$check_address" = "168" ]; then
-error_5 "The IP Address was not found"
+error_code 20 "The IP Address was not found"
 fi
 
 if [ "$check_url" == "66" ]; then
-error_5 "Can't resolve hostname"
+error_code 20 "Can't resolve hostname"
 fi
 
 }
 
-
-if [ "$good_to_go" == "0" ]; then
-
-get_lat="$(geoiplookup $net_add | tail -1 | awk '{print $(NF-3) " " $(NF-2)}' | awk '{print $1}')"
-echo $get_lat
-
-get_lon="$(geoiplookup $net_add | tail -1 | awk '{print $(NF-3) " " $(NF-2)}' | awk '{print $2}')"
-echo $get_lon
+if [ -n "${myflag}" ]; then
+check_connect "${only_host_name}"
 
 fi
+
+
+
+#if [ "$good_to_go" == "0" ]; then
+
+get_lat="$(geoiplookup "${only_host_name}" | tail -1 | awk '{print $(NF-3) " " $(NF-2)}' | awk '{print $1}')"
+echo $get_lat
+
+get_lon="$(geoiplookup "${only_host_name}" | tail -1 | awk '{print $(NF-3) " " $(NF-2)}' | awk '{print $2}')"
+echo $get_lon
+
+#fi
+
+# case_numbers="$(echo {1..9})"
+# 
+# if [ `expr "${get_lat}" : ".*[${case_numbers}].*"` -gt 0 ]; then 
+# 
+# echo "${get_lat}"
+# echo "lat numeber"; 
+# 
+# fi
+# 
+# if [ `expr "${get_lon}" : ".*[${case_numbers}].*"` -gt 0 ]; then 
+# 
+# echo "${get_lat}"
+# echo "lon numeber"; 
+# 
+# fi
 
 if [ "$myflag" == "mapsii" ]; then
 
 full_line_mapscii="$(echo '    lat: '$get_lat' lon: '$get_lon' ')"
-sed -i '' "${lineNo}s/.*/$full_line_mapscii/" $mapscii_file
+sed -i '' "${lineNo}s/.*/$full_line_mapscii/" ${mapscii_file}
 mapscii 
 
 fi
