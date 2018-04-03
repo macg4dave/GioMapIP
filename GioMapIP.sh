@@ -28,7 +28,7 @@ mapscii_file="/Users/dave/Github/mapscii/src/Mapscii.coffee"
 lineNo=37
 
 #API for google maps
-google_api_key="AIzaSyAAA7jgh_Q7ZY67KLeWy_L1qmd4-ybi2Eo"
+google_api_key=""
 
 #######################################
 # function error_code
